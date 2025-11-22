@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -22,44 +22,68 @@ export default function HomePage() {
 
   const [loading, setLoading] = useState(false);
   const [fetched, setFetched] = useState(false);
-
   const resultsRef = useRef<HTMLDivElement | null>(null);
 
-  // NEW STATES FOR COPY EFFECT
   const [copiedSingle, setCopiedSingle] = useState(false);
   const [copiedTimeline, setCopiedTimeline] = useState<number | null>(null);
 
-  /* ---------------- FETCH ---------------- */
+  /* ------------------------------------------------
+       FETCH QUOTE
+  -------------------------------------------------- */
   async function fetchQuote() {
     if (!date) return;
 
     setLoading(true);
     setFetched(false);
-    setQuotes([]);
     setSingleQuote("");
     setSingleUrl("");
+    setQuotes([]);
 
-    const res = await fetch("/api/quote", {
-      method: "POST",
-      body: JSON.stringify({ date, acrossYears }),
-    });
+    try {
+      const res = await fetch("/api/quote", {
+        method: "POST",
+        body: JSON.stringify({ date, acrossYears }),
+      });
 
-    const data = await res.json();
-    setLoading(false);
-    setFetched(true);
+      const data = await res.json();
+      setLoading(false);
+      setFetched(true);
 
-    if (acrossYears) {
-      if (data.quotes) setQuotes(data.quotes);
-    } else {
-      if (data.quote) setSingleQuote(data.quote);
-      if (data.url) setSingleUrl(data.url);
+      if (acrossYears) {
+        if (data.quotes) setQuotes(data.quotes);
+      } else {
+        if (data.quote) setSingleQuote(data.quote);
+        if (data.url) setSingleUrl(data.url);
+      }
+
+      setTimeout(() => {
+        resultsRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 300);
+    } catch {
+      setLoading(false);
+      setFetched(true);
     }
-
-    setTimeout(() => {
-      resultsRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, 300);
   }
 
+  /* ------------------------------------------------
+     EFFECT 1 — Initialize state only once
+  -------------------------------------------------- */
+  useEffect(() => {
+    const today = new Date().toISOString().split("T")[0];
+    setDate(today);
+    setAcrossYears(false);
+  }, []);
+
+  /* ------------------------------------------------
+     EFFECT 2 — Fetch AFTER initial state is ready
+  -------------------------------------------------- */
+  useEffect(() => {
+    if (date) fetchQuote();
+  }, [date, acrossYears]);
+
+  /* ------------------------------------------------
+     RENDER
+  -------------------------------------------------- */
   return (
     <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-black to-slate-700 p-6">
       <Card className="w-full max-w-xl shadow-xl border border-slate-300">
@@ -70,7 +94,7 @@ export default function HomePage() {
         </CardHeader>
 
         <CardContent className="space-y-6">
-          {/* Date Picker */}
+          {/* Date */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">Select a Date</Label>
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
@@ -93,22 +117,21 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Button */}
-          <Button onClick={fetchQuote} className="w-full py-3 text-[17px]" disabled={loading}>
+          <Button onClick={fetchQuote} disabled={loading} className="w-full py-3 text-[17px]">
             {loading ? "Fetching..." : acrossYears ? "Get Quotes Across Years" : "Get Quote for This Date"}
           </Button>
 
           <div ref={resultsRef} />
 
-          {/* Loading Skeleton */}
+          {/* Loading */}
           {loading && (
-            <div className="space-y-2 mt-4">
+            <>
               <Skeleton className="h-4 w-full" />
               <Skeleton className="h-4 w-4/5" />
-            </div>
+            </>
           )}
 
-          {/* ---------------- SINGLE DAY QUOTE ---------------- */}
+          {/* SINGLE QUOTE */}
           {!loading && fetched && !acrossYears && singleQuote && (
             <div className="mt-4 bg-white p-4 rounded-xl border shadow-sm">
               <p className="text-xl italic leading-relaxed">
@@ -118,14 +141,13 @@ export default function HomePage() {
               </p>
 
               <div className="flex gap-3 mt-4">
-                {/* Copy */}
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(singleQuote);
                     setCopiedSingle(true);
                     setTimeout(() => setCopiedSingle(false), 1500);
                   }}
-                  className={`flex items-center gap-1 text-sm px-3 py-1 rounded-lg border ${
+                  className={`flex items-center gap-1 px-3 py-1 rounded-lg border text-sm ${
                     copiedSingle
                       ? "text-green-600 border-green-600 bg-green-50"
                       : "text-slate-600 hover:bg-slate-100"
@@ -135,7 +157,6 @@ export default function HomePage() {
                   {copiedSingle ? "Copied!" : "Copy"}
                 </button>
 
-                {/* Open Link */}
                 <a
                   href={singleUrl}
                   target="_blank"
@@ -148,30 +169,26 @@ export default function HomePage() {
             </div>
           )}
 
-          {/* ---------------- TIMELINE QUOTES ---------------- */}
+          {/* TIMELINE QUOTES */}
           {!loading && fetched && acrossYears && quotes.length > 0 && (
-            <div className="relative border-slate-300 border-l ml-4 mt-6 space-y-6">
+            <div className="relative border-l border-slate-300 ml-4 mt-6 space-y-6">
               {quotes.map((item) => (
                 <div key={item.year} className="relative pl-6">
-                  <div className="absolute -left-[7px] top-1 w-3 h-3 bg-indigo-500 rounded-full shadow-lg" />
-
+                  <div className="absolute -left-[7px] w-3 h-3 bg-indigo-500 rounded-full shadow-lg" />
                   <p className="text-xs font-semibold text-slate-500">{item.year}</p>
 
-                  <p className="text-lg italic leading-relaxed bg-white p-4 rounded-xl border shadow-sm">
+                  <p className="text-lg bg-white p-4 italic leading-relaxed rounded-xl border shadow-sm">
                     {item.quote}
                   </p>
 
                   <div className="flex gap-3 mt-2">
-                    {/* Copy */}
                     <button
                       onClick={() => {
-                        navigator.clipboard.writeText(
-                          `${item.quote}`
-                        );
+                        navigator.clipboard.writeText(item.quote);
                         setCopiedTimeline(item.year);
                         setTimeout(() => setCopiedTimeline(null), 1500);
                       }}
-                      className={`flex items-center gap-1 text-xs px-2 py-1 rounded-lg border ${
+                      className={`flex items-center gap-1 px-2 py-1 text-xs rounded-lg border ${
                         copiedTimeline === item.year
                           ? "text-green-600 border-green-600 bg-green-50"
                           : "text-slate-600 hover:bg-slate-100"
@@ -181,7 +198,6 @@ export default function HomePage() {
                       {copiedTimeline === item.year ? "Copied!" : "Copy"}
                     </button>
 
-                    {/* Source */}
                     <a
                       href={item.url}
                       target="_blank"
